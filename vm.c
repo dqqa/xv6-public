@@ -31,8 +31,7 @@ void seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
-walkpgdir(pde_t *pgdir, const void *va, int alloc)
+static pte_t *walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
     pde_t *pde;
     pte_t *pgtab;
@@ -59,8 +58,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned.
-static int
-mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+static int mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 {
     char *a, *last;
     pte_t *pte;
@@ -73,9 +71,11 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
             return -1;
         if (*pte & PTE_P)
             panic("remap");
+
         *pte = pa | perm | PTE_P;
         if (a == last)
             break;
+
         a += PGSIZE;
         pa += PGSIZE;
     }
@@ -119,24 +119,26 @@ static struct kmap
 };
 
 // Set up kernel part of a page table.
-pde_t *
-setupkvm(void)
+pde_t *setupkvm(void)
 {
     pde_t *pgdir;
     struct kmap *k;
 
     if ((pgdir = (pde_t *)kalloc()) == 0)
         return 0;
+
     memset(pgdir, 0, PGSIZE);
     if (P2V(PHYSTOP) > (void *)DEVSPACE)
         panic("PHYSTOP too high");
+
     for (k = kmap; k < &kmap[NELEM(kmap)]; k++)
-        if (mappages(pgdir, k->virt, k->phys_end - k->phys_start,
-                     (uint)k->phys_start, k->perm) < 0)
+    {
+        if (mappages(pgdir, k->virt, k->phys_end - k->phys_start, (uint)k->phys_start, k->perm) < 0)
         {
             freevm(pgdir);
             return 0;
         }
+    }
     return pgdir;
 }
 
@@ -166,8 +168,7 @@ void switchuvm(struct proc *p)
         panic("switchuvm: no pgdir");
 
     pushcli();
-    mycpu()->gdt[SEG_TSS] = SEG16(STS_T32A, &mycpu()->ts,
-                                  sizeof(mycpu()->ts) - 1, 0);
+    mycpu()->gdt[SEG_TSS] = SEG16(STS_T32A, &mycpu()->ts, sizeof(mycpu()->ts) - 1, 0);
     mycpu()->gdt[SEG_TSS].s = 0;
     mycpu()->ts.ss0 = SEG_KDATA << 3;
     mycpu()->ts.esp0 = (uint)p->kstack + KSTACKSIZE;
@@ -187,6 +188,7 @@ void inituvm(pde_t *pgdir, char *init, uint sz)
 
     if (sz >= PGSIZE)
         panic("inituvm: more than a page");
+
     mem = kalloc();
     memset(mem, 0, PGSIZE);
     mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W | PTE_U);
@@ -202,18 +204,22 @@ int loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 
     if ((uint)addr % PGSIZE != 0)
         panic("loaduvm: addr must be page aligned");
+
     for (i = 0; i < sz; i += PGSIZE)
     {
         if ((pte = walkpgdir(pgdir, addr + i, 0)) == 0)
             panic("loaduvm: address should exist");
+
         pa = PTE_ADDR(*pte);
         if (sz - i < PGSIZE)
             n = sz - i;
         else
             n = PGSIZE;
+
         if (readi(ip, P2V(pa), offset + i, n) != n)
             return -1;
     }
+
     return 0;
 }
 
@@ -274,11 +280,13 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
             pa = PTE_ADDR(*pte);
             if (pa == 0)
                 panic("kfree");
+
             char *v = P2V(pa);
             kfree(v);
             *pte = 0;
         }
     }
+
     return newsz;
 }
 
@@ -290,6 +298,7 @@ void freevm(pde_t *pgdir)
 
     if (pgdir == 0)
         panic("freevm: no pgdir");
+
     deallocuvm(pgdir, KERNBASE, 0);
     for (i = 0; i < NPDENTRIES; i++)
     {
@@ -299,6 +308,7 @@ void freevm(pde_t *pgdir)
             kfree(v);
         }
     }
+
     kfree((char *)pgdir);
 }
 
@@ -311,6 +321,7 @@ void clearpteu(pde_t *pgdir, char *uva)
     pte = walkpgdir(pgdir, uva, 0);
     if (pte == 0)
         panic("clearpteu");
+
     *pte &= ~PTE_U;
 }
 
@@ -326,16 +337,19 @@ copyuvm(pde_t *pgdir, uint sz)
 
     if ((d = setupkvm()) == 0)
         return 0;
+
     for (i = 0; i < sz; i += PGSIZE)
     {
         if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
             panic("copyuvm: pte should exist");
         if (!(*pte & PTE_P))
             panic("copyuvm: page not present");
+
         pa = PTE_ADDR(*pte);
         flags = PTE_FLAGS(*pte);
         if ((mem = kalloc()) == 0)
             goto bad;
+
         memmove(mem, (char *)P2V(pa), PGSIZE);
         if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
         {
@@ -343,6 +357,7 @@ copyuvm(pde_t *pgdir, uint sz)
             goto bad;
         }
     }
+
     return d;
 
 bad:
@@ -362,6 +377,7 @@ uva2ka(pde_t *pgdir, char *uva)
         return 0;
     if ((*pte & PTE_U) == 0)
         return 0;
+
     return (char *)P2V(PTE_ADDR(*pte));
 }
 
@@ -380,14 +396,17 @@ int copyout(pde_t *pgdir, uint va, void *p, uint len)
         pa0 = uva2ka(pgdir, (char *)va0);
         if (pa0 == 0)
             return -1;
+
         n = PGSIZE - (va - va0);
         if (n > len)
             n = len;
+
         memmove(pa0 + (va - va0), buf, n);
         len -= n;
         buf += n;
         va = va0 + PGSIZE;
     }
+
     return 0;
 }
 

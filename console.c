@@ -132,8 +132,7 @@ void panic(char *s)
 #define CRTPORT 0x3d4
 static ushort *crt = (ushort *)P2V(0xb8000); // CGA memory
 
-static void
-cgaputc(int c)
+static void cgaputc(int c)
 {
     int pos;
 
@@ -157,7 +156,8 @@ cgaputc(int c)
         panic("pos under/overflow");
 
     if ((pos / 80) >= 24)
-    { // Scroll up.
+    {
+        // Scroll up.
         memmove(crt, crt + 80, sizeof(crt[0]) * 23 * 80);
         pos -= 80;
         memset(crt + pos, 0, sizeof(crt[0]) * (24 * 80 - pos));

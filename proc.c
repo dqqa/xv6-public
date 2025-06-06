@@ -34,8 +34,7 @@ int cpuid()
 
 // Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
-struct cpu *
-mycpu(void)
+struct cpu *mycpu(void)
 {
     int apicid, i;
 
@@ -55,8 +54,7 @@ mycpu(void)
 
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
-struct proc *
-myproc(void)
+struct proc *myproc(void)
 {
     struct cpu *c;
     struct proc *p;
@@ -72,8 +70,7 @@ myproc(void)
 //  If found, change state to EMBRYO and initialize
 //  state required to run in the kernel.
 //  Otherwise return 0.
-static struct proc *
-allocproc(void)
+static struct proc *allocproc(void)
 {
     struct proc *p;
     char *sp;
@@ -130,8 +127,10 @@ void userinit(void)
     initproc = p;
     if ((p->pgdir = setupkvm()) == 0)
         panic("userinit: out of memory?");
+
     inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
     p->sz = PGSIZE;
+
     memset(p->tf, 0, sizeof(*p->tf));
     p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
     p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -354,7 +353,7 @@ void scheduler(void)
             c->proc = p;
             switchuvm(p);
             p->state = RUNNING;
-
+            cprintf("Switching to: %d (`%s`)\n", p->pid, p->name[0] != '\0' ? p->name : "?");
             swtch(&(c->scheduler), p->context);
             switchkvm();
 

@@ -470,6 +470,7 @@ int readi(struct inode *ip, char *dst, uint off, uint n)
     {
         if (ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read)
             return -1;
+
         return devsw[ip->major].read(ip, dst, n);
     }
 
